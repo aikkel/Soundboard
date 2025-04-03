@@ -6,11 +6,12 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 import sys
 import os
+from audio.sound_manager import SoundManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Audio Program")
+        self.setWindowTitle("Soundboard")
         self.setGeometry(100, 100, 800, 400)
         
         self.central_widget = QStackedWidget()
@@ -21,6 +22,8 @@ class MainWindow(QMainWindow):
         
         self.central_widget.addWidget(self.scene0)
         self.central_widget.addWidget(self.scene1)
+        
+        self.sound_manager = SoundManager()
     
     def create_scene0(self):
         scene = QWidget()
@@ -104,15 +107,27 @@ class MainWindow(QMainWindow):
         self.refresh_button.clicked.connect(self.load_sounds)
         layout.addWidget(self.refresh_button)
         
+        # Save button: Save settings and return to Scene 0
         self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.save_and_return_to_scene0)
+        layout.addWidget(self.save_button)
+        
+        # Discard button: Return to Scene 0 without saving
         self.discard_button = QPushButton("Discard")
         self.discard_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.scene0))
-        
-        layout.addWidget(self.save_button)
         layout.addWidget(self.discard_button)
         
         scene.setLayout(layout)
         return scene
+
+    def save_and_return_to_scene0(self):
+        # Placeholder for saving settings logic
+        print("Settings saved")
+        # Switch back to Scene 0
+        self.central_widget.setCurrentWidget(self.scene0)
+
+    def play_selected_sound(self, file_path):
+        self.sound_manager.play_sound(file_path)
 
 app = QApplication(sys.argv)
 window = MainWindow()
