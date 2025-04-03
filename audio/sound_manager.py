@@ -13,6 +13,7 @@ class SoundManager:
             print("Error: No file path provided.")
             return
 
+        print(f"Playing sound from: {file_path}")  # Debugging
         self.media_player.setSource(QUrl.fromLocalFile(file_path))
         self.media_player.play()
 
