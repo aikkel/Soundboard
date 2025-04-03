@@ -39,12 +39,22 @@ class MainWindow(QMainWindow):
         placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.grid_layout.addWidget(placeholder_label, 0, 0, 1, 4)  # Spanning 4 columns
         
+        # Add a Refresh button
+        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button.clicked.connect(self.refresh_grid)
+        self.layout.addWidget(self.refresh_button)
+        
         self.settings_button = QPushButton("Settings")
         self.settings_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.scene1))
         self.layout.addWidget(self.settings_button)
         
         scene.setLayout(self.layout)
         return scene
+
+    def refresh_grid(self):
+        # Placeholder functionality for refreshing the grid
+        # This can be extended to reload the folder or update the grid dynamically
+        print("Refresh button clicked")
     
     def load_sounds(self):
         folder = QFileDialog.getExistingDirectory(self, "Select Sound Folder")
