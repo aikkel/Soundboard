@@ -71,14 +71,18 @@ class MainWindow(QMainWindow):
             self.populate_sound_buttons(folder)
     
     def populate_sound_buttons(self, folder):
+        # Clear existing buttons in the grid
         for i in reversed(range(self.grid_layout.count())):
             self.grid_layout.itemAt(i).widget().setParent(None)
         
+        # Get a list of sound files in the folder
         sound_files = [f for f in os.listdir(folder) if f.endswith(('.mp3', '.wav', '.ogg'))]
         
         row, col = 0, 0
         for sound in sound_files:
+            file_path = os.path.join(folder, sound)  # Full path to the sound file
             btn = QPushButton(sound)
+            btn.clicked.connect(lambda checked, path=file_path: self.play_selected_sound(path))  # Connect button to playback
             self.grid_layout.addWidget(btn, row, col)
             col += 1
             if col > 3:
@@ -133,7 +137,12 @@ class MainWindow(QMainWindow):
         self.central_widget.setCurrentWidget(self.scene0)
 
     def play_selected_sound(self, file_path):
-        self.sound_manager.play_sound(file_path)
+        if self.sound_manager.is_playing():
+            print(f"Stopping sound: {file_path}")  # Debugging
+            self.sound_manager.stop_sound()
+        else:
+            print(f"Playing sound: {file_path}")  # Debugging
+            self.sound_manager.play_sound(file_path)
 
 app = QApplication(sys.argv)
 window = MainWindow()
