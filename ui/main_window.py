@@ -1,3 +1,9 @@
+import sys
+import os
+
+# Add the root directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QLabel,
     QLineEdit, QStackedWidget, QGridLayout, QDial, QComboBox, QFileDialog
@@ -6,11 +12,12 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QIcon
 import sys
 import os
+from audio.sound_manager import SoundManager
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Audio Program")
+        self.setWindowTitle("Soundboard")
         self.setGeometry(100, 100, 800, 400)
         
         self.central_widget = QStackedWidget()
@@ -21,6 +28,8 @@ class MainWindow(QMainWindow):
         
         self.central_widget.addWidget(self.scene0)
         self.central_widget.addWidget(self.scene1)
+        
+        self.sound_manager = SoundManager()
     
     def create_scene0(self):
         scene = QWidget()
@@ -62,14 +71,18 @@ class MainWindow(QMainWindow):
             self.populate_sound_buttons(folder)
     
     def populate_sound_buttons(self, folder):
+        # Clear existing buttons in the grid
         for i in reversed(range(self.grid_layout.count())):
             self.grid_layout.itemAt(i).widget().setParent(None)
         
+        # Get a list of sound files in the folder
         sound_files = [f for f in os.listdir(folder) if f.endswith(('.mp3', '.wav', '.ogg'))]
         
         row, col = 0, 0
         for sound in sound_files:
+            file_path = os.path.join(folder, sound)  # Full path to the sound file
             btn = QPushButton(sound)
+            btn.clicked.connect(lambda checked, path=file_path: self.play_selected_sound(path))  # Connect button to playback
             self.grid_layout.addWidget(btn, row, col)
             col += 1
             if col > 3:
@@ -104,15 +117,32 @@ class MainWindow(QMainWindow):
         self.refresh_button.clicked.connect(self.load_sounds)
         layout.addWidget(self.refresh_button)
         
+        # Save button: Save settings and return to Scene 0
         self.save_button = QPushButton("Save")
+        self.save_button.clicked.connect(self.save_and_return_to_scene0)
+        layout.addWidget(self.save_button)
+        
+        # Discard button: Return to Scene 0 without saving
         self.discard_button = QPushButton("Discard")
         self.discard_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.scene0))
-        
-        layout.addWidget(self.save_button)
         layout.addWidget(self.discard_button)
         
         scene.setLayout(layout)
         return scene
+
+    def save_and_return_to_scene0(self):
+        # Placeholder for saving settings logic
+        print("Settings saved")
+        # Switch back to Scene 0
+        self.central_widget.setCurrentWidget(self.scene0)
+
+    def play_selected_sound(self, file_path):
+        if self.sound_manager.is_playing():
+            print(f"Stopping sound: {file_path}")  # Debugging
+            self.sound_manager.stop_sound()
+        else:
+            print(f"Playing sound: {file_path}")  # Debugging
+            self.sound_manager.play_sound(file_path)
 
 app = QApplication(sys.argv)
 window = MainWindow()
