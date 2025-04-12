@@ -1,2 +1,4 @@
 # Ignore the Testfolder and its contents
 Testfolder/
+# ignore settings.json file
+settings.json
