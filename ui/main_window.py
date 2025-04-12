@@ -77,8 +77,12 @@ class MainWindow(QMainWindow):
         print("Refresh button clicked")
     
     def load_sounds(self):
+        """Open a folder dialog to select a sound folder and populate the grid."""
         folder = QFileDialog.getExistingDirectory(self, "Select Sound Folder")
         if folder:
+            self.settings["last_sound_folder"] = folder  # Save the selected folder to settings
+            save_settings(self.settings)  # Persist the updated settings
+            print(f"Selected folder saved: {folder}")  # Debugging
             self.populate_sound_buttons(folder)
     
     def populate_sound_buttons(self, folder):
@@ -163,7 +167,14 @@ class MainWindow(QMainWindow):
             index = self.input_device.findText(last_selected_mic)
             if index != -1:
                 self.input_device.setCurrentIndex(index)
-        print("Settings applied.")  # Debugging
+
+        # Load the last selected folder and populate the grid
+        last_folder = self.settings.get("last_sound_folder")
+        if last_folder and os.path.exists(last_folder):
+            print(f"Loading sounds from last folder: {last_folder}")  # Debugging
+            self.populate_sound_buttons(last_folder)
+        else:
+            print("No valid folder found in settings.")  # Debugging
 
     def save_and_return_to_scene0(self):
         """Save settings and return to Scene 0."""
