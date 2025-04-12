@@ -1,0 +1,3 @@
+pyaudio
+pyqt6
+numpy
