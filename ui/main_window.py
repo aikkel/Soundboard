@@ -15,25 +15,33 @@ import sys
 import os
 from audio.sound_manager import SoundManager
 from audio.mic_mixer import MicMixer  # Import the MicMixer class
+from config import load_settings, save_settings  # Import the config functions
 
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Soundboard")
         self.setGeometry(100, 100, 800, 400)
-        
+
+        # Load settings
+        self.settings = load_settings()
+        print("Loaded settings:", self.settings)  # Debugging
+
         self.central_widget = QStackedWidget()
         self.setCentralWidget(self.central_widget)
-        
+
         self.scene0 = self.create_scene0()
         self.scene1 = self.create_scene1()
-        
+
         self.central_widget.addWidget(self.scene0)
         self.central_widget.addWidget(self.scene1)
-        
+
         self.sound_manager = SoundManager()
         self.mic_mixer = None  # Initialize the mic mixer as None
-    
+
+        # Apply loaded settings
+        self.apply_settings()
+
     def create_scene0(self):
         scene = QWidget()
         self.layout = QVBoxLayout()
@@ -145,9 +153,28 @@ class MainWindow(QMainWindow):
         scene.setLayout(layout)
         return scene
 
+    def apply_settings(self):
+        """Apply settings to the UI components."""
+        print("Applying settings...")  # Debugging
+        self.dial_mc.setValue(int(self.settings.get("mic_volume", 1.00) * 100))
+        self.dial_sb.setValue(int(self.settings.get("speaker_volume", 1.00) * 100))
+        last_selected_mic = self.settings.get("last_selected_mic")
+        if last_selected_mic:
+            index = self.input_device.findText(last_selected_mic)
+            if index != -1:
+                self.input_device.setCurrentIndex(index)
+        print("Settings applied.")  # Debugging
+
     def save_and_return_to_scene0(self):
-        # Placeholder for saving settings logic
-        print("Settings saved")
+        """Save settings and return to Scene 0."""
+        # Save current settings
+        self.settings["mic_volume"] = self.dial_mc.value() / 100
+        self.settings["speaker_volume"] = self.dial_sb.value() / 100
+        self.settings["last_selected_mic"] = self.input_device.currentText()
+        save_settings(self.settings)
+
+        print("Settings saved:", self.settings)  # Debugging
+
         # Switch back to Scene 0
         self.central_widget.setCurrentWidget(self.scene0)
 
