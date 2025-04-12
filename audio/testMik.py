@@ -22,10 +22,15 @@ class AudioApp(QMainWindow):
         # Input device dropdown
         self.device_selector = QComboBox()
         self.devices = self.get_input_devices()
+        default_device_index = self.get_default_device_index()
         for name in self.devices:
             self.device_selector.addItem(name)
         self.layout.addWidget(QLabel("Select Microphone:"))
         self.layout.addWidget(self.device_selector)
+
+        # Set default device in dropdown
+        if default_device_index is not None:
+            self.device_selector.setCurrentIndex(default_device_index)
 
         # Start button
         self.start_button = QPushButton("Start")
@@ -49,6 +54,17 @@ class AudioApp(QMainWindow):
                     name = name.decode("utf-8", errors="replace")
                 device_names[name] = i
         return device_names
+
+    def get_default_device_index(self):
+        try:
+            default_device_info = self.p.get_default_input_device_info()
+            default_device_name = default_device_info['name']
+            if isinstance(default_device_name, bytes):
+                default_device_name = default_device_name.decode("utf-8", errors="replace")
+            return list(self.devices.keys()).index(default_device_name)
+        except Exception as e:
+            print(f"⚠️ Could not determine default device: {e}")
+            return None
 
     def start_audio(self):
         index = self.device_selector.currentIndex()
