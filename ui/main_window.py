@@ -135,10 +135,10 @@ class MainWindow(QMainWindow):
         self.refresh_button.clicked.connect(self.load_sounds)
         layout.addWidget(self.refresh_button)
 
-        # Add microphone control buttons
-        self.start_mic_button = QPushButton("Start Mic Capture")
-        self.start_mic_button.clicked.connect(self.start_mic_capture)
-        layout.addWidget(self.start_mic_button)
+        # Rename and connect the Test Mic button
+        self.test_mic_button = QPushButton("Test Mic")
+        self.test_mic_button.clicked.connect(self.test_mic)  # Connect to the test_mic method
+        layout.addWidget(self.test_mic_button)
 
         self.stop_mic_button = QPushButton("Stop Mic Capture")
         self.stop_mic_button.clicked.connect(self.stop_mic_capture)
@@ -156,6 +156,11 @@ class MainWindow(QMainWindow):
 
         scene.setLayout(layout)
         return scene
+
+    def test_mic(self):
+        """Run the testMik script."""
+        script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "audio", "testMik.py")
+        os.system(f"python \"{script_path}\"")  # Use the full path to the script
 
     def apply_settings(self):
         """Apply settings to the UI components."""
