@@ -1,5 +1,9 @@
 import subprocess
 
+# Path to the VB-Cable installer
+installer_path = "VBCABLE_Driver_Pack45/VBCABLE_Setup_x64.exe"
+
+
 def install_vbcable(installer_path):
     try:
         result = subprocess.run(
@@ -13,6 +17,4 @@ def install_vbcable(installer_path):
     except subprocess.CalledProcessError as e:
         print(f"VB-Cable installation failed: {e.stderr.decode()}")
 
-# Path to the VB-Cable installer
-installer_path = "VBCABLE_Driver_Pack45/VBCABLE_Setup_x64.exe"
 install_vbcable(installer_path)
