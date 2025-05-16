@@ -154,6 +154,11 @@ class MainWindow(QMainWindow):
         self.discard_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.scene0))
         layout.addWidget(self.discard_button)
 
+        # Add Legal Information button
+        self.legal_button = QPushButton("Legal Information")
+        self.legal_button.clicked.connect(self.show_legal_info)
+        layout.addWidget(self.legal_button)
+
         scene.setLayout(layout)
         return scene
 
@@ -219,6 +224,25 @@ class MainWindow(QMainWindow):
             print("Microphone capture stopped.")
         else:
             print("Microphone is not capturing.")
+
+    def show_legal_info(self):
+        """Display legal information about VB-Cable."""
+        from PyQt6.QtWidgets import QMessageBox
+
+        legal_text = (
+            "This application uses VB-Cable, a virtual audio device driver.\n\n"
+            "VB-Cable is donationware developed by VB-Audio Software. "
+            "You can use it for free, but donations are encouraged to support the developers.\n\n"
+            "For more information or to donate, visit:\n"
+            "https://vb-audio.com/Cable/"
+        )
+
+        QMessageBox.information(
+            self,
+            "Legal Information",
+            legal_text,
+            QMessageBox.StandardButton.Ok
+        )
 
 app = QApplication(sys.argv)
 window = MainWindow()

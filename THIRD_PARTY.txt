@@ -1,0 +1,1 @@
+This application uses VB-Cable Virtual Audio Device (Copyright VB-Audio Software, Donationware, https://vb-audio.com/). Please consider donating if you find it useful.
