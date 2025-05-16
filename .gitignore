@@ -1,4 +1,8 @@
 # Ignore the Testfolder and its contents
 Testfolder/
-# ignore settings.json file
+
+# Ignore settings.json file
 settings.json
+
+# Ignore ffmpeg archives and extracted folders
+ffmpeg-7.1.1*

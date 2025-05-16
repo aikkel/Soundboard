@@ -1,7 +1,6 @@
 import sys
 import threading
 import pyaudio
-import numpy as np
 from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget, QComboBox, QPushButton, QLabel
 
 class AudioApp(QMainWindow):

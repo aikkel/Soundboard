@@ -1,5 +1,6 @@
 from PyQt6.QtMultimedia import QAudioSource, QMediaDevices, QAudioFormat
 from PyQt6.QtCore import QIODevice
+from audio.audio_format_utils import audio_matches_qt_format
 
 class MicMixer:
     def __init__(self, audio_device=None):
@@ -48,3 +49,10 @@ class MicMixer:
         self.volume = max(0.0, min(1.0, volume))  # Clamp volume to valid range
         self.audio_source.setVolume(self.volume)  # Apply volume to the audio source
         print(f"Microphone volume set to {self.volume}")
+
+# Example usage
+mic_mixer = MicMixer()
+if audio_matches_qt_format("mysound.mp3", mic_mixer.audio_format):
+    print("Formats match!")
+else:
+    print("Formats do not match.")
