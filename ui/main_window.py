@@ -200,13 +200,20 @@ class MainWindow(QMainWindow):
         self.central_widget.setCurrentWidget(self.scene0)
 
     def play_selected_sound(self, file_path):
+        # Ensure the MicMixer is instantiated
+        if not self.mic_mixer:
+            selected_device = self.input_device.currentData()  # Get the selected QAudioDevice
+            self.mic_mixer = MicMixer(audio_device=selected_device)  # Pass the selected device
+            print(f"MicMixer initialized with device: {selected_device.description()}")  # Debugging
+
+        # Play or stop the sound
         if self.sound_manager.is_playing():
             print(f"Stopping sound: {file_path}")  # Debugging
             self.sound_manager.stop_sound()
         else:
             print(f"Playing sound: {file_path}")  # Debugging
             self.sound_manager.play_sound(file_path)
-
+    
     def start_mic_capture(self):
         """Start capturing audio from the microphone."""
         if not self.mic_mixer:

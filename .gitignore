@@ -4,5 +4,7 @@ Testfolder/
 # Ignore settings.json file
 settings.json
 
-# Ignore ffmpeg archives and extracted folders
-ffmpeg-7.1.1*
+audio/__pycache__/__init__.cpython-312.pyc
+audio/__pycache__/mic_mixer.cpython-312.pyc
+audio/__pycache__/sound_manager.cpython-312.pyc
+__pycache__/config.cpython-312.pyc
