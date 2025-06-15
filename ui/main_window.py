@@ -13,7 +13,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtMultimedia import QMediaDevices  # Add this import
 import sys
 import os
-from audio.sound_manager import SoundManager
+from audio.sound_manager import SoundManager, decode_to_pcm
 from audio.mic_mixer import MicMixer  # Import the MicMixer class
 from config import load_settings, save_settings  # Import the config functions
 
@@ -200,19 +200,23 @@ class MainWindow(QMainWindow):
         self.central_widget.setCurrentWidget(self.scene0)
 
     def play_selected_sound(self, file_path):
+        if not os.path.exists(file_path):
+            print(f"File does not exist: {file_path}")
+            return
+
         # Ensure the MicMixer is instantiated
         if not self.mic_mixer:
-            selected_device = self.input_device.currentData()  # Get the selected QAudioDevice
-            self.mic_mixer = MicMixer(audio_device=selected_device)  # Pass the selected device
-            print(f"MicMixer initialized with device: {selected_device.description()}")  # Debugging
+            selected_device = self.input_device.currentData()
+            self.mic_mixer = MicMixer(audio_device=selected_device)
+            print(f"MicMixer initialized with device: {selected_device.description()}")
 
-        # Play or stop the sound
-        if self.sound_manager.is_playing():
-            print(f"Stopping sound: {file_path}")  # Debugging
-            self.sound_manager.stop_sound()
+        # Decode file to PCM and load into mic_mixer
+        pcm_bytes = decode_to_pcm(file_path)
+        if pcm_bytes:
+            print(f"Loading PCM data of size {len(pcm_bytes)} bytes into MicMixer.")
+            self.mic_mixer.load_soundboard_audio(pcm_bytes)
         else:
-            print(f"Playing sound: {file_path}")  # Debugging
-            self.sound_manager.play_sound(file_path)
+            print("Failed to decode sound file to PCM.")
     
     def start_mic_capture(self):
         """Start capturing audio from the microphone."""
@@ -233,15 +237,18 @@ class MainWindow(QMainWindow):
             print("Microphone is not capturing.")
 
     def show_legal_info(self):
-        """Display legal information about VB-Cable."""
+        """Display legal information about VB-Cable and ffmpeg."""
         from PyQt6.QtWidgets import QMessageBox
 
         legal_text = (
-            "This application uses VB-Cable, a virtual audio device driver.\n\n"
-            "VB-Cable is donationware developed by VB-Audio Software. "
-            "You can use it for free, but donations are encouraged to support the developers.\n\n"
-            "For more information or to donate, visit:\n"
-            "https://vb-audio.com/Cable/"
+            "This application uses the following third-party components:\n"
+            "• VB-Cable: A virtual audio device driver.\n"
+            "  VB-Cable is donationware developed by VB-Audio Software. "
+            " You can use it for free, but donations are encouraged to support the developers.\n"
+            "  More info: https://vb-audio.com/Cable/\n""\n"
+            "• ffmpeg: An open source multimedia framework.\n"
+            "  Copyright FFmpeg developers, licensed under LGPL/GPL.\n"
+            "  More info: https://ffmpeg.org/\n"
         )
 
         QMessageBox.information(

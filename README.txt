@@ -1,3 +1,21 @@
+# Soundboard Setup
+
+## Requirements
+- Python 3.10+ (https://www.python.org/downloads/)
+- ffmpeg (https://ffmpeg.org/download.html) — add to your PATH
+- VB-Cable (https://vb-audio.com/Cable/) — install and reboot
+
+## Installation
+1. Clone this repo
+2. Open a terminal in the project folder
+3. Run: pip install -r requirements.txt
+
+## Running
+python -m ui.main_window
+
+## Troubleshooting
+- If you see "ffmpeg not found", install ffmpeg and add it to your PATH.
+
 Third-Party Dependencies
 ========================
 
