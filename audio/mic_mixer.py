@@ -9,6 +9,8 @@ class MicMixer:
 
         if not self.audio_device:
             raise RuntimeError("No microphone device found.")
+        else:
+            print(f"Using audio input device: {self.audio_device.description()}")
 
         if not self.output_device:
             print("Warning: VB Cable not found. Using default audio output.")
@@ -25,6 +27,10 @@ class MicMixer:
         self.audio_output = QAudioSink(self.output_device)
 
         self.input_stream = self.audio_input.start()
+        if self.input_stream is None:
+            print(f"Failed to initialize input_stream for device: {self.audio_device.description()}")
+            print("Try selecting a different input device or check your microphone permissions.")
+            return  # or raise an exception
         self.output_stream = self.audio_output.start()
 
         self.timer = QTimer()
@@ -35,9 +41,9 @@ class MicMixer:
         self.sound_buffer = sound_data
 
     def mix_audio(self):
-        if not self.sound_buffer:
+        if self.input_stream is None:
+            print("Input stream is not initialized.")
             return
-
         mic_data = self.input_stream.readAll()
         if not mic_data:
             return
@@ -60,3 +66,7 @@ class MicMixer:
             if "VB-Audio" in device.description():
                 return device
         return None
+
+print("Available input devices:")
+for dev in QMediaDevices.audioInputs():
+    print(dev.description())

@@ -1,5 +1,6 @@
 import os
 from pydub import AudioSegment
+import numpy as np
 
 def audio_matches_qt_format(audio_path, qt_format):
     """
@@ -19,6 +20,16 @@ def audio_matches_qt_format(audio_path, qt_format):
         sample_width == qt_bytes_per_sample and
         sample_rate == qt_sample_rate
     )
+
+def decode_to_pcm(file_path, target_sample_rate=48000, target_channels=1):
+    # Load audio file using pydub (which uses ffmpeg under the hood)
+    audio = AudioSegment.from_file(file_path)
+    audio = audio.set_frame_rate(target_sample_rate).set_channels(target_channels)
+    # Get raw PCM data as bytes
+    pcm_data = audio.raw_data
+    # Optionally, convert to numpy array
+    pcm_array = np.frombuffer(pcm_data, dtype=np.int16)
+    return pcm_array
 
 # --- Test code below ---
 

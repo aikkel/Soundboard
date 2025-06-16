@@ -13,9 +13,10 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtMultimedia import QMediaDevices  # Add this import
 import sys
 import os
-from audio.sound_manager import SoundManager, decode_to_pcm
+from audio.sound_manager import SoundManager
 from audio.mic_mixer import MicMixer  # Import the MicMixer class
 from config import load_settings, save_settings  # Import the config functions
+from audio.audio_format_utils import decode_to_pcm  # Import the decode function
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -212,9 +213,9 @@ class MainWindow(QMainWindow):
 
         # Decode file to PCM and load into mic_mixer
         pcm_bytes = decode_to_pcm(file_path)
-        if pcm_bytes:
+        if pcm_bytes is not None and len(pcm_bytes) > 0:
             print(f"Loading PCM data of size {len(pcm_bytes)} bytes into MicMixer.")
-            self.mic_mixer.load_soundboard_audio(pcm_bytes)
+            self.mic_mixer.load_sound(pcm_bytes)
         else:
             print("Failed to decode sound file to PCM.")
     
