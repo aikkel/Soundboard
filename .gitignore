@@ -1,4 +1,19 @@
 # Ignore the Testfolder and its contents
 Testfolder/
-# ignore settings.json file
+
+bin/
+
+# Ignore settings.json file
 settings.json
+
+audio/__pycache__/__init__.cpython-312.pyc
+audio/__pycache__/mic_mixer.cpython-312.pyc
+audio/__pycache__/sound_manager.cpython-312.pyc
+__pycache__/config.cpython-312.pyc
+audio/__pycache__/audio_format_utils.cpython-312.pyc
+ui/__pycache__/__init__.cpython-312.pyc
+ui/__pycache__/sound_grid_widget.cpython-312.pyc
+
+ui/__pycache__/main_window.cpython-312.pyc
+ui/__pycache__/main_window.cpython-312.pyc
+ui/__pycache__/main_window.cpython-312.pyc

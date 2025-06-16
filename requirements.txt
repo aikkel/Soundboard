@@ -1,3 +1,4 @@
 pyaudio
 pyqt6
 numpy
+pydub
