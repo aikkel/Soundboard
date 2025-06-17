@@ -20,7 +20,7 @@ class MicMixer:
 
         self.input_stream = None
         self.output_stream = None
-        self.sound_buffer = np.array([], dtype=np.int16)
+        self.sound_buffer = np.array([], dtype=np.float32)
         self.sound_position = 0
         self.is_active = False
         
@@ -29,19 +29,18 @@ class MicMixer:
         self.init_audio_streams()
 
     def setup_audio_format(self):
-        """Set up a consistent audio format for both input and output"""
-        self.format = QAudioFormat()
-        self.format.setSampleRate(48000)
-        self.format.setChannelCount(1)  # Mono
-        self.format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+        """Set up audio format based on what devices actually support"""
+        # Start with the input device's preferred format
+        self.format = self.audio_device.preferredFormat()
         
-        # Check if the format is supported by both devices
-        if not self.audio_device.isFormatSupported(self.format):
-            print("Warning: Audio format not supported by input device, using preferred format")
-            self.format = self.audio_device.preferredFormat()
+        print(f"Input device preferred format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
         
+        # Check if output device supports this format, if not use its preferred format
         if not self.output_device.isFormatSupported(self.format):
-            print("Warning: Audio format not supported by output device")
+            print("Output device doesn't support input format, using output preferred format")
+            self.format = self.output_device.preferredFormat()
+        
+        print(f"Final format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
 
     def init_audio_streams(self):
         try:
@@ -79,15 +78,49 @@ class MicMixer:
             raise
 
     def load_sound(self, sound_data):
-        """Load sound data for mixing"""
-        if isinstance(sound_data, np.ndarray):
-            self.sound_buffer = sound_data.astype(np.int16)
-        else:
-            # Convert bytes to numpy array
-            self.sound_buffer = np.frombuffer(sound_data, dtype=np.int16)
-        
-        self.sound_position = 0
-        print(f"Loaded sound buffer with {len(self.sound_buffer)} samples")
+        """Load sound data for mixing - convert to match current audio format"""
+        try:
+            if isinstance(sound_data, np.ndarray):
+                # If it's already a numpy array, ensure it's the right type
+                if sound_data.dtype == np.int16:
+                    # Convert int16 to float32 (normalize to -1.0 to 1.0 range)
+                    sound_float = sound_data.astype(np.float32) / 32768.0
+                else:
+                    sound_float = sound_data.astype(np.float32)
+            else:
+                # Convert bytes to numpy array (assuming int16) then to float32
+                sound_int16 = np.frombuffer(sound_data, dtype=np.int16)
+                sound_float = sound_int16.astype(np.float32) / 32768.0
+            
+            # Handle channel conversion
+            target_channels = self.format.channelCount()
+            
+            if len(sound_float.shape) == 1:  # Mono input
+                if target_channels == 2:  # Convert mono to stereo
+                    sound_float = np.column_stack((sound_float, sound_float))
+                    print(f"Converted mono sound to stereo")
+                elif target_channels == 1:  # Keep as mono
+                    pass
+                else:
+                    print(f"Warning: Unsupported channel count: {target_channels}")
+                    return
+            else:  # Stereo or multi-channel input
+                if target_channels == 1:  # Convert to mono
+                    sound_float = np.mean(sound_float, axis=1)
+                    print(f"Converted stereo sound to mono")
+                elif target_channels == 2:  # Keep as stereo
+                    pass
+                else:
+                    print(f"Warning: Unsupported channel count: {target_channels}")
+                    return
+            
+            self.sound_buffer = sound_float
+            self.sound_position = 0
+            print(f"Loaded sound buffer with {len(self.sound_buffer)} samples, {target_channels} channels")
+            
+        except Exception as e:
+            print(f"Error loading sound: {e}")
+            self.sound_buffer = np.array([], dtype=np.float32)
 
     def mix_audio(self):
         if not self.is_active or self.input_stream is None or self.output_stream is None:
@@ -106,43 +139,90 @@ class MicMixer:
             if not mic_data or len(mic_data) == 0:
                 return
 
-            # Convert to numpy array
-            mic_array = np.frombuffer(mic_data, dtype=np.int16)
+            # Convert to numpy array based on sample format
+            if self.format.sampleFormat() == QAudioFormat.SampleFormat.Float:
+                mic_array = np.frombuffer(mic_data, dtype=np.float32)
+            elif self.format.sampleFormat() == QAudioFormat.SampleFormat.Int16:
+                mic_int16 = np.frombuffer(mic_data, dtype=np.int16)
+                mic_array = mic_int16.astype(np.float32) / 32768.0
+            else:
+                print(f"Unsupported sample format: {self.format.sampleFormat()}")
+                return
             
             if len(mic_array) == 0:
                 return
+            
+            # Handle channel count for mixing
+            channels = self.format.channelCount()
+            if channels > 1:
+                # Reshape for multi-channel audio
+                mic_array = mic_array.reshape(-1, channels)
+                frames = len(mic_array)
+            else:
+                frames = len(mic_array)
             
             # Initialize mixed array with mic data
             mixed_array = mic_array.copy()
             
             # Mix in sound buffer if available
             if len(self.sound_buffer) > 0 and self.sound_position < len(self.sound_buffer):
-                # Calculate how much of the sound buffer to use
-                samples_needed = len(mic_array)
-                samples_available = len(self.sound_buffer) - self.sound_position
-                samples_to_use = min(samples_needed, samples_available)
+                if channels > 1 and len(self.sound_buffer.shape) > 1:
+                    # Multi-channel mixing
+                    frames_needed = frames
+                    frames_available = len(self.sound_buffer) - self.sound_position
+                    frames_to_use = min(frames_needed, frames_available)
+                    
+                    if frames_to_use > 0:
+                        sound_chunk = self.sound_buffer[self.sound_position:self.sound_position + frames_to_use]
+                        
+                        # Mix the audio (simple addition with volume control)
+                        mixed_section = mixed_array[:frames_to_use] + (sound_chunk * 0.5)  # Reduce sound volume
+                        
+                        # Clip to prevent distortion
+                        mixed_section = np.clip(mixed_section, -1.0, 1.0)
+                        mixed_array[:frames_to_use] = mixed_section
+                        
+                        self.sound_position += frames_to_use
+                else:
+                    # Mono mixing
+                    samples_needed = len(mic_array) if channels == 1 else len(mic_array)
+                    samples_available = len(self.sound_buffer) - self.sound_position
+                    samples_to_use = min(samples_needed, samples_available)
+                    
+                    if samples_to_use > 0:
+                        sound_chunk = self.sound_buffer[self.sound_position:self.sound_position + samples_to_use]
+                        
+                        if channels == 1:
+                            mixed_section = mic_array[:samples_to_use] + (sound_chunk * 0.5)
+                        else:
+                            # Broadcast mono sound to stereo
+                            sound_stereo = np.column_stack((sound_chunk, sound_chunk))[:samples_to_use//2]
+                            mixed_section = mixed_array[:len(sound_stereo)] + (sound_stereo * 0.5)
+                        
+                        mixed_section = np.clip(mixed_section, -1.0, 1.0)
+                        if channels == 1:
+                            mixed_array[:samples_to_use] = mixed_section
+                        else:
+                            mixed_array[:len(mixed_section)] = mixed_section
+                        
+                        self.sound_position += samples_to_use
                 
-                if samples_to_use > 0:
-                    # Get the sound data to mix
-                    sound_chunk = self.sound_buffer[self.sound_position:self.sound_position + samples_to_use]
-                    
-                    # Mix the audio (add and clip to prevent overflow)
-                    mixed_section = np.add(mic_array[:samples_to_use].astype(np.int32), 
-                                         sound_chunk.astype(np.int32))
-                    
-                    # Clip to int16 range
-                    mixed_section = np.clip(mixed_section, -32768, 32767).astype(np.int16)
-                    mixed_array[:samples_to_use] = mixed_section
-                    
-                    # Update sound position
-                    self.sound_position += samples_to_use
-                    
-                    # Reset sound position if we've reached the end
-                    if self.sound_position >= len(self.sound_buffer):
-                        self.sound_position = 0  # Loop the sound
+                # Reset sound position if we've reached the end
+                if self.sound_position >= len(self.sound_buffer):
+                    # self.sound_position = 0  # Uncomment to loop the sound
+                    self.sound_buffer = np.array([], dtype=np.float32)  # Stop after playing once
+                    print("Sound finished playing")
+            
+            # Convert back to bytes for output
+            if self.format.sampleFormat() == QAudioFormat.SampleFormat.Float:
+                mixed_data = mixed_array.tobytes()
+            elif self.format.sampleFormat() == QAudioFormat.SampleFormat.Int16:
+                mixed_int16 = (mixed_array * 32767).astype(np.int16)
+                mixed_data = mixed_int16.tobytes()
+            else:
+                return
             
             # Write mixed audio to output
-            mixed_data = mixed_array.tobytes()
             bytes_written = self.output_stream.write(mixed_data)
             
             if bytes_written < 0:
