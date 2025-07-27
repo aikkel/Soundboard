@@ -155,6 +155,7 @@ class MainWindow(QMainWindow):
         self.discard_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.scene0))
         layout.addWidget(self.discard_button)
 
+
         # Add Legal Information button
         self.legal_button = QPushButton("Legal Information")
         self.legal_button.clicked.connect(self.show_legal_info)

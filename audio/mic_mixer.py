@@ -4,30 +4,44 @@ import numpy as np
 from audio.audio_format_utils import decode_to_pcm  # Add this import at the top
 #comments needed to reuploade
 class MicMixer:
-    def __init__(self, audio_device=None, output_device=None):
+    def __init__(self, audio_device=None, output_devices=None):
         self.audio_device = audio_device or QMediaDevices.defaultAudioInput()
-        self.output_device = output_device or self.get_vbcable_output_device()
-
         if not self.audio_device:
+            print("❌ No microphone device found during registration.")
             raise RuntimeError("No microphone device found.")
         else:
-            print(f"Using audio input device: {self.audio_device.description()}")
+            print(f"✅ Registered microphone: {self.audio_device.description()}")
 
-        if not self.output_device:
-            print("Warning: VB Cable not found. Using default audio output.")
-            self.output_device = QMediaDevices.defaultAudioOutput()
+        # Support multiple output devices
+        if output_devices is None:
+            vb_cable = self.get_vbcable_output_device()
+            default_output = QMediaDevices.defaultAudioOutput()
+            self.output_devices = [vb_cable] if vb_cable else []
+            if default_output and (not vb_cable or default_output != vb_cable):
+                self.output_devices.append(default_output)
         else:
-            print(f"Using audio output device: {self.output_device.description()}")
+            self.output_devices = output_devices
+
+        print("✅ Using audio output devices:")
+        for dev in self.output_devices:
+            print(f"   - {dev.description()}")
 
         self.input_stream = None
-        self.output_stream = None
+        self.output_streams = []
         self.sound_buffer = np.array([], dtype=np.float32)
         self.sound_position = 0
         self.is_active = False
-        
+
         # Set up audio format
         self.setup_audio_format()
-        self.init_audio_streams()
+
+        # Init mic check
+        try:
+            self.init_audio_streams()
+            print("✅ Microphone initialized successfully.")
+        except Exception as e:
+            print(f"❌ Microphone initialization failed: {e}")
+            raise
 
     def setup_audio_format(self):
         """Set up audio format based on what devices actually support"""
@@ -45,22 +59,23 @@ class MicMixer:
         try:
             # Create audio source and sink with the format
             self.audio_input = QAudioSource(self.audio_device, self.format)
-            self.audio_output = QAudioSink(self.output_device, self.format)
-            
-            # Set buffer sizes (smaller for lower latency)
-            self.audio_input.setBufferSize(2048) 
-            self.audio_output.setBufferSize(2048)
-            
-            # Start the streams
             self.input_stream = self.audio_input.start()
-            self.output_stream = self.audio_output.start()
-            
+            self.audio_output_objs = []
+            self.output_streams = []
+            for dev in self.output_devices:
+                ao = QAudioSink(dev, self.format)
+                ao.setBufferSize(2048)
+                stream = ao.start()
+                self.audio_output_objs.append(ao)
+                self.output_streams.append(stream)
+                print(f"Started output stream for device: {dev.description()}")
+
             if self.input_stream is None:
+                print("❌ Input stream does not contain microphone data.")
                 raise RuntimeError(f"Failed to initialize input stream for device: {self.audio_device.description()}")
-            
-            if self.output_stream is None:
-                raise RuntimeError(f"Failed to initialize output stream for device: {self.output_device.description()}")
-                
+            else:
+                print("✅ Input stream contains microphone data.")
+
             print(f"Audio streams initialized successfully")
             print(f"Input format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
             
@@ -120,7 +135,7 @@ class MicMixer:
             self.sound_buffer = np.array([], dtype=np.float32)
 
     def mix_audio(self):
-        if not self.is_active or self.input_stream is None or self.output_stream is None:
+        if not self.is_active or self.input_stream is None or not self.output_streams:
             return
 
         try:
@@ -148,7 +163,6 @@ class MicMixer:
             if mic_array.size != expected_samples:
                 mic_array = np.zeros(expected_samples, dtype=np.float32)
             mic_array = mic_array.reshape(frames_per_tick, channels)
-            mixed_array = mic_array.copy()
 
             # Prepare sound_chunk (music) for mixing
             if self.sound_buffer is not None and len(self.sound_buffer) > 0 and self.sound_position < len(self.sound_buffer):
@@ -163,19 +177,19 @@ class MicMixer:
             else:
                 sound_chunk = np.zeros((frames_per_tick, channels), dtype=np.float32)
 
-            # Mix with volume balance (adjust as needed)
-            mic_volume = 0.8
-            music_volume = 0.7
-            mixed_array = (mic_array * mic_volume) + (sound_chunk * music_volume)
+            mic_gain = 1.0   # Full volume for mic
+            music_gain = 0.2 # Lower volume for music
+
+            mixed_array = (mic_array * mic_gain) + (sound_chunk * music_gain)
             mixed_array = np.clip(mixed_array, -1.0, 1.0)
 
             mixed_int16 = (mixed_array * 32767).astype(np.int16)
             mixed_data = mixed_int16.flatten(order='C').tobytes()
 
-            bytes_written = self.output_stream.write(mixed_data)
-            if bytes_written < 0:
-                print("Error writing to output stream")
-
+            for stream in self.output_streams:
+                bytes_written = stream.write(mixed_data)
+                if bytes_written < 0:
+                    print("Error writing to output stream")
         except Exception as e:
             print(f"Error in mix_audio: {e}")
 
@@ -192,17 +206,18 @@ class MicMixer:
     def cleanup(self):
         """Clean up audio resources"""
         try:
-            if self.audio_input:
+            if hasattr(self, 'audio_input') and self.audio_input:
                 self.audio_input.stop()
-            if self.audio_output:
-                self.audio_output.stop()
+            if hasattr(self, 'audio_output_objs'):
+                for ao in self.audio_output_objs:
+                    ao.stop()
         except Exception as e:
             print(f"Error during cleanup: {e}")
         
         self.input_stream = None
-        self.output_stream = None
+        self.output_streams = []
         self.audio_input = None
-        self.audio_output = None
+        self.audio_output_objs = []
 
     def get_vbcable_output_device(self):
         """Find VB-Cable output device"""
