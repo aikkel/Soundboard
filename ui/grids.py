@@ -21,6 +21,10 @@ def populate_sound_buttons(self, folder):
                 row += 1
           
 def refresh_grid(self):
-        # Placeholder functionality for refreshing the grid
-        # This can be extended to reload the folder or update the grid dynamically
-        print("Refresh button clicked")
+    """Reload the sound grid using the last selected folder from settings."""
+    folder = self.settings.get("last_sound_folder")
+    if folder and os.path.exists(folder):
+        populate_sound_buttons(self, folder)
+        print(f"Grid refreshed from folder: {folder}")
+    else:
+        print("No valid folder found in settings.")
