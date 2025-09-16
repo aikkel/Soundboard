@@ -1,0 +1,9 @@
+    This application uses the following third-party components:
+
+    • VB-Cable: A virtual audio device driver.
+        VB-Cable is donationware developed by VB-Audio Software. You can use it for free, but donations are encouraged to support the developers.
+        More info: https://vb-audio.com/Cable/
+
+    • ffmpeg: An open source multimedia framework.
+        Copyright FFmpeg developers, licensed under LGPL/GPL.
+        More info: https://ffmpeg.org/

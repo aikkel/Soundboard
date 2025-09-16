@@ -1,5 +1,5 @@
-# Ignore the Testfolder and its contents
-Testfolder/
+# Ignore the test and its contents
+tests/sounds/*
 
 bin/
 
