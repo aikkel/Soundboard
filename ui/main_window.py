@@ -14,7 +14,7 @@ from utils.config import load_settings, save_settings  # Import the config funct
 from audio.audio_format_utils import decode_to_pcm  # Import the decode function
 from utils.adjust_settings import apply_settings
 import ui.settings_panel, ui.grids
-# import utils.adjust_settings
+from ui.play_panel import create_play_panel
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -29,7 +29,7 @@ class MainWindow(QMainWindow):
         self.central_widget = QStackedWidget()
         self.setCentralWidget(self.central_widget)
 
-        self.scene0 = self.create_scene0()
+        self.scene0 = create_play_panel(self)
         self.scene1 = ui.settings_panel.create_scene1(self)
 
         self.central_widget.addWidget(self.scene0)
@@ -41,35 +41,6 @@ class MainWindow(QMainWindow):
         # Apply loaded settings
         apply_settings(self)
 
-    def create_scene0(self):
-        scene = QWidget()
-        self.layout = QVBoxLayout()
-        
-        self.search_bar = QLineEdit()
-        self.search_bar.setPlaceholderText("Search")
-        self.layout.addWidget(self.search_bar)
-        
-        # Add a grid layout for the file grid
-        self.grid_layout = QGridLayout()
-        self.layout.addLayout(self.grid_layout)
-        
-        # Placeholder label for the grid
-        placeholder_label = QLabel("No files loaded. Connect a folder to populate.")
-        placeholder_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.grid_layout.addWidget(placeholder_label, 0, 0, 1, 4)  # Spanning 4 columns
-        
-        # Add a Refresh button
-        self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.clicked.connect(lambda: ui.grids.refresh_grid(self))
-        self.layout.addWidget(self.refresh_button)
-        
-        self.settings_button = QPushButton("Settings")
-        self.settings_button.clicked.connect(lambda: self.central_widget.setCurrentWidget(self.scene1))
-        self.layout.addWidget(self.settings_button)
-        
-        scene.setLayout(self.layout)
-        return scene
-    
     def test_mic(self):
         """Run the testMik script."""
         script_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "audio", "testMik.py")
