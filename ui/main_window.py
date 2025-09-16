@@ -3,17 +3,14 @@ import os
 # Add the root directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from PyQt6.QtWidgets import (
-    QApplication, QMainWindow, QWidget, QVBoxLayout, QPushButton, QLabel,
-    QLineEdit, QStackedWidget, QGridLayout
-)
+from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
 from PyQt6.QtCore import Qt
 from audio.sound_manager import SoundManager
 from audio.mic_mixer import MicMixer  # Import the MicMixer class
 from utils.config import load_settings, save_settings  # Import the config functions
 from audio.audio_format_utils import decode_to_pcm  # Import the decode function
 from utils.adjust_settings import apply_settings
-import ui.settings_panel, ui.grids
+import ui.settings_panel
 from ui.play_panel import create_play_panel
 
 class MainWindow(QMainWindow):
