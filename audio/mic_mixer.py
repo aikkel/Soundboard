@@ -2,7 +2,9 @@ from PyQt6.QtMultimedia import QAudioSource, QAudioSink, QMediaDevices, QAudioFo
 from PyQt6.QtCore import QIODevice, QTimer, QByteArray
 import numpy as np
 from audio.audio_format_utils import decode_to_pcm  # Add this import at the top
-#comments needed to reuploade
+from audio.device_utils import list_audio_devices
+
+
 class MicMixer:
     def __init__(self, audio_device=None, output_devices=None):
         self.audio_device = audio_device or QMediaDevices.defaultAudioInput()
@@ -233,20 +235,10 @@ class MicMixer:
         """Destructor to ensure cleanup"""
         self.cleanup()
 
-# Debug function to list available devices
-def list_audio_devices():
-    print("\n=== Available Audio Input Devices ===")
-    for i, device in enumerate(QMediaDevices.audioInputs()):
-        print(f"{i}: {device.description()}")
-        
-    print("\n=== Available Audio Output Devices ===")
-    for i, device in enumerate(QMediaDevices.audioOutputs()):
-        print(f"{i}: {device.description()}")
-
 if __name__ == "__main__":
     # For testing
     from PyQt6.QtWidgets import QApplication
     import sys
-    
+
     app = QApplication(sys.argv)
     list_audio_devices()
