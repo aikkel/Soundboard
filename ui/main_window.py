@@ -4,7 +4,6 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
-from PyQt6.QtCore import Qt
 from audio.sound_manager import SoundManager
 from audio.mic_mixer import MicMixer  # Import the MicMixer class
 from utils.config import load_settings, save_settings  # Import the config functions
