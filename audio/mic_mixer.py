@@ -4,15 +4,26 @@ import numpy as np
 from audio.audio_format_utils import decode_to_pcm  # Add this import at the top
 from audio.device_utils import list_audio_devices
 
+DEFAULT_CHANNELS = 2
+DEFAULT_SAMPLE_RATE = 48000
+AUDIO_OUTPUT_BUFFER_SIZE = 2048
+AUDIO_PROCESS_INTERVAL_SEC = 0.011
+AUDIO_PROCESS_INTERVAL_MS = 11
+MIC_GAIN = 1.0
+MUSIC_GAIN = 0.2
+INT16_MAX = 32767
+INT16_SCALE = 32768.0
+
+
 
 class MicMixer:
     def __init__(self, audio_device=None, output_devices=None):
         self.audio_device = audio_device or QMediaDevices.defaultAudioInput()
         if not self.audio_device:
-            print("❌ No microphone device found during registration.")
+            print("No microphone device found during registration.")
             raise RuntimeError("No microphone device found.")
         else:
-            print(f"✅ Registered microphone: {self.audio_device.description()}")
+            print(f"Registered microphone: {self.audio_device.description()}")
 
         # Support multiple output devices
         if output_devices is None:
@@ -24,7 +35,7 @@ class MicMixer:
         else:
             self.output_devices = output_devices
 
-        print("✅ Using audio output devices:")
+        print("Using audio output devices:")
         for dev in self.output_devices:
             print(f"   - {dev.description()}")
 
@@ -40,9 +51,9 @@ class MicMixer:
         # Init mic check
         try:
             self.init_audio_streams()
-            print("✅ Microphone initialized successfully.")
+            print("Microphone initialized successfully.")
         except Exception as e:
-            print(f"❌ Microphone initialization failed: {e}")
+            print(f"Microphone initialization failed: {e}")
             raise
 
     def setup_audio_format(self):
@@ -52,8 +63,8 @@ class MicMixer:
 
         # Force output to Int16 for compatibility with VB-Cable/Discord
         self.format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-        self.format.setChannelCount(2)  # Stereo is safest for Discord
-        self.format.setSampleRate(48000)  # 48000Hz is standard for Discord
+        self.format.setChannelCount(DEFAULT_CHANNELS)  # Stereo is safest for Discord
+        self.format.setSampleRate(DEFAULT_SAMPLE_RATE)  # 48000Hz is standard for Discord
 
         print(f"Forced output format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
 
@@ -66,27 +77,27 @@ class MicMixer:
             self.output_streams = []
             for dev in self.output_devices:
                 ao = QAudioSink(dev, self.format)
-                ao.setBufferSize(2048)
+                ao.setBufferSize(AUDIO_OUTPUT_BUFFER_SIZE)
                 stream = ao.start()
                 self.audio_output_objs.append(ao)
                 self.output_streams.append(stream)
                 print(f"Started output stream for device: {dev.description()}")
 
             if self.input_stream is None:
-                print("❌ Input stream does not contain microphone data.")
+                print("Input stream does not contain microphone data.")
                 raise RuntimeError(f"Failed to initialize input stream for device: {self.audio_device.description()}")
             else:
-                print("✅ Input stream contains microphone data.")
+                print("Input stream contains microphone data.")
 
             print(f"Audio streams initialized successfully")
             print(f"Input format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
-            
+
             self.is_active = True
-            
+
             # Set up timer for audio processing (11ms for lower latency)
             self.timer = QTimer()
             self.timer.timeout.connect(self.mix_audio)
-            self.timer.start(11)  # Process every 11ms
+            self.timer.start(AUDIO_PROCESS_INTERVAL_MS)  # Process every 11ms
 
         except Exception as e:
             print(f"Error initializing audio streams: {e}")
@@ -113,14 +124,14 @@ class MicMixer:
 
             # Convert to float32 for mixing
             if pcm_array.dtype == np.int16:
-                sound_float = pcm_array.astype(np.float32) / 32768.0
+                sound_float = pcm_array.astype(np.float32) / INT16_SCALE
             else:
                 sound_float = pcm_array.astype(np.float32)
 
             # If mono but output is stereo, duplicate channel
-            if sound_float.ndim == 1 and channels == 2:
+            if sound_float.ndim == 1 and channels == DEFAULT_CHANNELS:
                 sound_float = np.column_stack([sound_float, sound_float])
-            elif sound_float.ndim == 2 and sound_float.shape[1] == 1 and channels == 2:
+            elif sound_float.ndim == 2 and sound_float.shape[1] == 1 and channels == DEFAULT_CHANNELS:
                 sound_float = np.column_stack([sound_float[:, 0], sound_float[:, 0]])
 
             # Ensure buffer is always (frames, channels)
@@ -141,7 +152,7 @@ class MicMixer:
             return
 
         try:
-            frames_per_tick = int(self.format.sampleRate() * 0.011)  # 11ms of audio
+            frames_per_tick = int(self.format.sampleRate() * AUDIO_PROCESS_INTERVAL_SEC)  # 11ms of audio
             channels = self.format.channelCount()
             bytes_per_sample = self.format.bytesPerSample()
             bytes_per_frame = channels * bytes_per_sample
@@ -153,7 +164,7 @@ class MicMixer:
 
             if mic_data and len(mic_data) == total_bytes:
                 if input_format == QAudioFormat.SampleFormat.Int16:
-                    mic_array = np.frombuffer(mic_data, dtype=np.int16).astype(np.float32) / 32768.0
+                    mic_array = np.frombuffer(mic_data, dtype=np.int16).astype(np.float32) / INT16_SCALE
                 elif input_format == QAudioFormat.SampleFormat.Float:
                     mic_array = np.frombuffer(mic_data, dtype=np.float32)
                 else:
@@ -179,13 +190,13 @@ class MicMixer:
             else:
                 sound_chunk = np.zeros((frames_per_tick, channels), dtype=np.float32)
 
-            mic_gain = 1.0   # Full volume for mic
-            music_gain = 0.2 # Lower volume for music
+            mic_gain = MIC_GAIN   # Full volume for mic
+            music_gain = MUSIC_GAIN # Lower volume for music
 
             mixed_array = (mic_array * mic_gain) + (sound_chunk * music_gain)
             mixed_array = np.clip(mixed_array, -1.0, 1.0)
 
-            mixed_int16 = (mixed_array * 32767).astype(np.int16)
+            mixed_int16 = (mixed_array * INT16_MAX).astype(np.int16)
             mixed_data = mixed_int16.flatten(order='C').tobytes()
 
             for stream in self.output_streams:
