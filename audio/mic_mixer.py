@@ -1,7 +1,7 @@
 from PyQt6.QtMultimedia import QAudioSource, QAudioSink, QMediaDevices, QAudioFormat
-from PyQt6.QtCore import QIODevice, QTimer, QByteArray
+from PyQt6.QtCore import QTimer
 import numpy as np
-from audio.audio_format_utils import decode_to_pcm  # Add this import at the top
+from audio.audio_format_utils import decode_to_pcm
 from audio.device_utils import list_audio_devices
 
 DEFAULT_CHANNELS = 2
