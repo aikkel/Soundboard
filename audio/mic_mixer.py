@@ -14,8 +14,6 @@ MUSIC_GAIN = 0.2
 INT16_MAX = 32767
 INT16_SCALE = 32768.0
 
-
-
 class MicMixer:
     def __init__(self, audio_device=None, output_devices=None):
         self.audio_device = audio_device or QMediaDevices.defaultAudioInput()
@@ -63,8 +61,8 @@ class MicMixer:
 
         # Force output to Int16 for compatibility with VB-Cable/Discord
         self.format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-        self.format.setChannelCount(DEFAULT_CHANNELS)  # Stereo is safest for Discord
-        self.format.setSampleRate(DEFAULT_SAMPLE_RATE)  # 48000Hz is standard for Discord
+        self.format.setChannelCount(DEFAULT_CHANNELS)
+        self.format.setSampleRate(DEFAULT_SAMPLE_RATE)
 
         print(f"Forced output format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
 
@@ -128,17 +126,11 @@ class MicMixer:
             else:
                 sound_float = pcm_array.astype(np.float32)
 
-            # If mono but output is stereo, duplicate channel
-            if sound_float.ndim == 1 and channels == DEFAULT_CHANNELS:
-                sound_float = np.column_stack([sound_float, sound_float])
-            elif sound_float.ndim == 2 and sound_float.shape[1] == 1 and channels == DEFAULT_CHANNELS:
-                sound_float = np.column_stack([sound_float[:, 0], sound_float[:, 0]])
+            # Duplicate mono channel to stereo if needed
+            sound_float = self.duplicate_mono_to_stereo(sound_float, channels)
 
             # Ensure buffer is always (frames, channels)
-            if sound_float.ndim == 1:
-                sound_float = sound_float.reshape(-1, channels)
-            elif sound_float.ndim == 2 and sound_float.shape[1] != channels:
-                sound_float = sound_float[:, :channels]
+            sound_float = self.ensure_channel_count(sound_float, channels)
 
             self.sound_buffer = sound_float
             self.sound_position = 0
@@ -146,6 +138,12 @@ class MicMixer:
         except Exception as e:
             print(f"Error loading sound: {e}")
             self.sound_buffer = np.array([], dtype=np.float32)
+
+    def ensure_mic_array_shape(self, mic_array, expected_samples, frames_per_tick, channels):
+        """Ensure mic_array is the correct size and shape for mixing."""
+        if mic_array.size != expected_samples:
+            mic_array = np.zeros(expected_samples, dtype=np.float32)
+        return mic_array.reshape(frames_per_tick, channels)
 
     def mix_audio(self):
         if not self.is_active or self.input_stream is None or not self.output_streams:
@@ -172,17 +170,12 @@ class MicMixer:
             else:
                 mic_array = np.zeros(expected_samples, dtype=np.float32)
 
-            # Ensure correct shape
-            if mic_array.size != expected_samples:
-                mic_array = np.zeros(expected_samples, dtype=np.float32)
-            mic_array = mic_array.reshape(frames_per_tick, channels)
+            mic_array = self.ensure_mic_array_shape(mic_array, expected_samples, frames_per_tick, channels)
 
             # Prepare sound_chunk (music) for mixing
             if self.sound_buffer is not None and len(self.sound_buffer) > 0 and self.sound_position < len(self.sound_buffer):
                 sound_chunk = self.sound_buffer[self.sound_position:self.sound_position + frames_per_tick]
-                if sound_chunk.shape[0] < frames_per_tick:
-                    pad_shape = (frames_per_tick - sound_chunk.shape[0], channels)
-                    sound_chunk = np.vstack([sound_chunk, np.zeros(pad_shape, dtype=np.float32)])
+                sound_chunk = self.pad_sound_chunk(sound_chunk, frames_per_tick, channels)
                 self.sound_position += frames_per_tick
                 if self.sound_position >= len(self.sound_buffer):
                     self.sound_buffer = np.array([], dtype=np.float32)
@@ -245,6 +238,29 @@ class MicMixer:
     def __del__(self):
         """Destructor to ensure cleanup"""
         self.cleanup()
+
+    def pad_sound_chunk(self, sound_chunk, target_frames, channels):
+        """Pad sound_chunk with zeros to reach target_frames length."""
+        if sound_chunk.shape[0] < target_frames:
+            pad_shape = (target_frames - sound_chunk.shape[0], channels)
+            sound_chunk = np.vstack([sound_chunk, np.zeros(pad_shape, dtype=np.float32)])
+        return sound_chunk
+
+    def duplicate_mono_to_stereo(self, sound_array, channels):
+        """Duplicate mono channel to stereo if needed."""
+        if sound_array.ndim == 1 and channels == DEFAULT_CHANNELS:
+            return np.column_stack([sound_array, sound_array])
+        elif sound_array.ndim == 2 and sound_array.shape[1] == 1 and channels == DEFAULT_CHANNELS:
+            return np.column_stack([sound_array[:, 0], sound_array[:, 0]])
+        return sound_array
+
+    def ensure_channel_count(self, sound_array, channels):
+        """Ensure sound_array has the correct number of channels."""
+        if sound_array.ndim == 1:
+            return sound_array.reshape(-1, channels)
+        elif sound_array.ndim == 2 and sound_array.shape[1] != channels:
+            return sound_array[:, :channels]
+        return sound_array
 
 if __name__ == "__main__":
     # For testing
