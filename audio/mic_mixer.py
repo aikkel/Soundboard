@@ -1,20 +1,31 @@
 from PyQt6.QtMultimedia import QAudioSource, QAudioSink, QMediaDevices, QAudioFormat
-from PyQt6.QtCore import QIODevice, QTimer, QByteArray
+from PyQt6.QtCore import QTimer
 import numpy as np
-from audio.audio_format_utils import decode_to_pcm  # Add this import at the top
-#comments needed to reuploade
+from audio.audio_format_utils import decode_to_pcm, duplicate_mono_to_stereo, ensure_channel_count
+from audio.device_utils import list_audio_devices, get_vbcable_output_device
+
+DEFAULT_CHANNELS = 2
+DEFAULT_SAMPLE_RATE = 48000
+AUDIO_OUTPUT_BUFFER_SIZE = 2048
+AUDIO_PROCESS_INTERVAL_SEC = 0.011
+AUDIO_PROCESS_INTERVAL_MS = 11
+MIC_GAIN = 1.0
+MUSIC_GAIN = 0.2
+INT16_MAX = 32767
+INT16_SCALE = 32768.0
+
 class MicMixer:
     def __init__(self, audio_device=None, output_devices=None):
         self.audio_device = audio_device or QMediaDevices.defaultAudioInput()
         if not self.audio_device:
-            print("❌ No microphone device found during registration.")
+            print("No microphone device found during registration.")
             raise RuntimeError("No microphone device found.")
         else:
-            print(f"✅ Registered microphone: {self.audio_device.description()}")
+            print(f"Registered microphone: {self.audio_device.description()}")
 
         # Support multiple output devices
         if output_devices is None:
-            vb_cable = self.get_vbcable_output_device()
+            vb_cable = get_vbcable_output_device()
             default_output = QMediaDevices.defaultAudioOutput()
             self.output_devices = [vb_cable] if vb_cable else []
             if default_output and (not vb_cable or default_output != vb_cable):
@@ -22,7 +33,7 @@ class MicMixer:
         else:
             self.output_devices = output_devices
 
-        print("✅ Using audio output devices:")
+        print("Using audio output devices:")
         for dev in self.output_devices:
             print(f"   - {dev.description()}")
 
@@ -38,9 +49,9 @@ class MicMixer:
         # Init mic check
         try:
             self.init_audio_streams()
-            print("✅ Microphone initialized successfully.")
+            print("Microphone initialized successfully.")
         except Exception as e:
-            print(f"❌ Microphone initialization failed: {e}")
+            print(f"Microphone initialization failed: {e}")
             raise
 
     def setup_audio_format(self):
@@ -50,8 +61,8 @@ class MicMixer:
 
         # Force output to Int16 for compatibility with VB-Cable/Discord
         self.format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
-        self.format.setChannelCount(2)  # Stereo is safest for Discord
-        self.format.setSampleRate(48000)  # 48000Hz is standard for Discord
+        self.format.setChannelCount(DEFAULT_CHANNELS)
+        self.format.setSampleRate(DEFAULT_SAMPLE_RATE)
 
         print(f"Forced output format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
 
@@ -64,68 +75,74 @@ class MicMixer:
             self.output_streams = []
             for dev in self.output_devices:
                 ao = QAudioSink(dev, self.format)
-                ao.setBufferSize(2048)
+                ao.setBufferSize(AUDIO_OUTPUT_BUFFER_SIZE)
                 stream = ao.start()
                 self.audio_output_objs.append(ao)
                 self.output_streams.append(stream)
                 print(f"Started output stream for device: {dev.description()}")
 
             if self.input_stream is None:
-                print("❌ Input stream does not contain microphone data.")
+                print("Input stream does not contain microphone data.")
                 raise RuntimeError(f"Failed to initialize input stream for device: {self.audio_device.description()}")
             else:
-                print("✅ Input stream contains microphone data.")
+                print("Input stream contains microphone data.")
 
             print(f"Audio streams initialized successfully")
             print(f"Input format: {self.format.sampleRate()}Hz, {self.format.channelCount()} channels, {self.format.sampleFormat()}")
-            
+
             self.is_active = True
-            
+
             # Set up timer for audio processing (11ms for lower latency)
             self.timer = QTimer()
             self.timer.timeout.connect(self.mix_audio)
-            self.timer.start(11)  # Process every 11ms
+            self.timer.start(AUDIO_PROCESS_INTERVAL_MS)  # Process every 11ms
 
         except Exception as e:
             print(f"Error initializing audio streams: {e}")
             self.cleanup()
             raise
 
+    def pcm_to_float32(self, pcm_array):
+        """Convert PCM numpy array to float32 in range [-1.0, 1.0]."""
+        if pcm_array.dtype == np.int16:
+            return pcm_array.astype(np.float32) / INT16_SCALE
+        else:
+            return pcm_array.astype(np.float32)
+
+    def prepare_sound_buffer(self, sound_data):
+        """Decode and prepare sound data as a float32 numpy array for mixing."""
+        sample_rate = self.format.sampleRate()
+        channels = self.format.channelCount()
+        bytes_per_sample = self.format.bytesPerSample()
+
+        # Only decode if not already a numpy array
+        if isinstance(sound_data, np.ndarray):
+            pcm_array = sound_data
+        else:
+            pcm_array = decode_to_pcm(sound_data, sample_rate, channels, bytes_per_sample)
+
+        if pcm_array is None or len(pcm_array) == 0:
+            return np.array([], dtype=np.float32)
+
+        # Convert to float32 for mixing
+        sound_float = self.pcm_to_float32(pcm_array)
+
+        # Duplicate mono channel to stereo if needed
+        sound_float = duplicate_mono_to_stereo(sound_float, channels)
+
+        # Ensure buffer is always (frames, channels)
+        sound_float = ensure_channel_count(sound_float, channels)
+
+        return sound_float
+
     def load_sound(self, sound_data):
         """Load sound data for mixing - convert to match current audio format"""
         try:
-            sample_rate = self.format.sampleRate()
-            channels = self.format.channelCount()
-            bytes_per_sample = self.format.bytesPerSample()
-
-            # Only decode if not already a numpy array
-            if isinstance(sound_data, np.ndarray):
-                pcm_array = sound_data
-            else:
-                pcm_array = decode_to_pcm(sound_data, sample_rate, channels, bytes_per_sample)
-
-            if pcm_array is None or len(pcm_array) == 0:
+            sound_float = self.prepare_sound_buffer(sound_data)
+            if sound_float is None or len(sound_float) == 0:
                 print("Failed to decode or convert sound file")
                 self.sound_buffer = np.array([], dtype=np.float32)
                 return
-
-            # Convert to float32 for mixing
-            if pcm_array.dtype == np.int16:
-                sound_float = pcm_array.astype(np.float32) / 32768.0
-            else:
-                sound_float = pcm_array.astype(np.float32)
-
-            # If mono but output is stereo, duplicate channel
-            if sound_float.ndim == 1 and channels == 2:
-                sound_float = np.column_stack([sound_float, sound_float])
-            elif sound_float.ndim == 2 and sound_float.shape[1] == 1 and channels == 2:
-                sound_float = np.column_stack([sound_float[:, 0], sound_float[:, 0]])
-
-            # Ensure buffer is always (frames, channels)
-            if sound_float.ndim == 1:
-                sound_float = sound_float.reshape(-1, channels)
-            elif sound_float.ndim == 2 and sound_float.shape[1] != channels:
-                sound_float = sound_float[:, :channels]
 
             self.sound_buffer = sound_float
             self.sound_position = 0
@@ -134,12 +151,18 @@ class MicMixer:
             print(f"Error loading sound: {e}")
             self.sound_buffer = np.array([], dtype=np.float32)
 
+    def ensure_mic_array_shape(self, mic_array, expected_samples, frames_per_tick, channels):
+        """Ensure mic_array is the correct size and shape for mixing."""
+        if mic_array.size != expected_samples:
+            mic_array = np.zeros(expected_samples, dtype=np.float32)
+        return mic_array.reshape(frames_per_tick, channels)
+
     def mix_audio(self):
         if not self.is_active or self.input_stream is None or not self.output_streams:
             return
 
         try:
-            frames_per_tick = int(self.format.sampleRate() * 0.011)  # 11ms of audio
+            frames_per_tick = int(self.format.sampleRate() * AUDIO_PROCESS_INTERVAL_SEC)  # 11ms of audio
             channels = self.format.channelCount()
             bytes_per_sample = self.format.bytesPerSample()
             bytes_per_frame = channels * bytes_per_sample
@@ -151,7 +174,7 @@ class MicMixer:
 
             if mic_data and len(mic_data) == total_bytes:
                 if input_format == QAudioFormat.SampleFormat.Int16:
-                    mic_array = np.frombuffer(mic_data, dtype=np.int16).astype(np.float32) / 32768.0
+                    mic_array = np.frombuffer(mic_data, dtype=np.int16).astype(np.float32) / INT16_SCALE
                 elif input_format == QAudioFormat.SampleFormat.Float:
                     mic_array = np.frombuffer(mic_data, dtype=np.float32)
                 else:
@@ -159,17 +182,12 @@ class MicMixer:
             else:
                 mic_array = np.zeros(expected_samples, dtype=np.float32)
 
-            # Ensure correct shape
-            if mic_array.size != expected_samples:
-                mic_array = np.zeros(expected_samples, dtype=np.float32)
-            mic_array = mic_array.reshape(frames_per_tick, channels)
+            mic_array = self.ensure_mic_array_shape(mic_array, expected_samples, frames_per_tick, channels)
 
             # Prepare sound_chunk (music) for mixing
             if self.sound_buffer is not None and len(self.sound_buffer) > 0 and self.sound_position < len(self.sound_buffer):
                 sound_chunk = self.sound_buffer[self.sound_position:self.sound_position + frames_per_tick]
-                if sound_chunk.shape[0] < frames_per_tick:
-                    pad_shape = (frames_per_tick - sound_chunk.shape[0], channels)
-                    sound_chunk = np.vstack([sound_chunk, np.zeros(pad_shape, dtype=np.float32)])
+                sound_chunk = self.pad_sound_chunk(sound_chunk, frames_per_tick, channels)
                 self.sound_position += frames_per_tick
                 if self.sound_position >= len(self.sound_buffer):
                     self.sound_buffer = np.array([], dtype=np.float32)
@@ -177,13 +195,13 @@ class MicMixer:
             else:
                 sound_chunk = np.zeros((frames_per_tick, channels), dtype=np.float32)
 
-            mic_gain = 1.0   # Full volume for mic
-            music_gain = 0.2 # Lower volume for music
+            mic_gain = MIC_GAIN   # Full volume for mic
+            music_gain = MUSIC_GAIN # Lower volume for music
 
             mixed_array = (mic_array * mic_gain) + (sound_chunk * music_gain)
             mixed_array = np.clip(mixed_array, -1.0, 1.0)
 
-            mixed_int16 = (mixed_array * 32767).astype(np.int16)
+            mixed_int16 = (mixed_array * INT16_MAX).astype(np.int16)
             mixed_data = mixed_int16.flatten(order='C').tobytes()
 
             for stream in self.output_streams:
@@ -219,34 +237,13 @@ class MicMixer:
         self.audio_input = None
         self.audio_output_objs = []
 
-    def get_vbcable_output_device(self):
-        """Find VB-Cable output device"""
-        devices = QMediaDevices.audioOutputs()
-        for device in devices:
-            description = device.description().lower()
-            if "vb-audio" in description or "cable" in description:
-                print(f"Found VB-Cable device: {device.description()}")
-                return device
-        return None
-
     def __del__(self):
         """Destructor to ensure cleanup"""
         self.cleanup()
 
-# Debug function to list available devices
-def list_audio_devices():
-    print("\n=== Available Audio Input Devices ===")
-    for i, device in enumerate(QMediaDevices.audioInputs()):
-        print(f"{i}: {device.description()}")
-        
-    print("\n=== Available Audio Output Devices ===")
-    for i, device in enumerate(QMediaDevices.audioOutputs()):
-        print(f"{i}: {device.description()}")
-
-if __name__ == "__main__":
-    # For testing
-    from PyQt6.QtWidgets import QApplication
-    import sys
-    
-    app = QApplication(sys.argv)
-    list_audio_devices()
+    def pad_sound_chunk(self, sound_chunk, target_frames, channels):
+        """Pad sound_chunk with zeros to reach target_frames length."""
+        if sound_chunk.shape[0] < target_frames:
+            pad_shape = (target_frames - sound_chunk.shape[0], channels)
+            sound_chunk = np.vstack([sound_chunk, np.zeros(pad_shape, dtype=np.float32)])
+        return sound_chunk

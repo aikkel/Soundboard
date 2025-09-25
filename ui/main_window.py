@@ -4,7 +4,6 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
-from PyQt6.QtCore import Qt
 from audio.sound_manager import SoundManager
 from audio.mic_mixer import MicMixer  # Import the MicMixer class
 from utils.config import load_settings, save_settings  # Import the config functions
@@ -57,17 +56,27 @@ class MainWindow(QMainWindow):
         self.central_widget.setCurrentWidget(self.scene0)
 
     def play_selected_sound(self, file_path):
-        if not os.path.exists(file_path):
-            print(f"File does not exist: {file_path}")
+        if not self._file_exists(file_path):
             return
 
-        # Ensure the MicMixer is instantiated
+        self._ensure_mic_mixer()
+        self._decode_and_load_sound(file_path)
+
+    def _file_exists(self, file_path):
+        if not os.path.exists(file_path):
+            print(f"File does not exist: {file_path}")
+            return False
+        return True
+
+
+    def _ensure_mic_mixer(self):
         if not self.mic_mixer:
             selected_device = self.input_device.currentData()
             self.mic_mixer = MicMixer(audio_device=selected_device)
             print(f"MicMixer initialized with device: {selected_device.description()}")
 
-        # Decode file to PCM and load into mic_mixer
+
+    def _decode_and_load_sound(self, file_path):
         pcm_bytes = decode_to_pcm(file_path)
         if pcm_bytes is not None and len(pcm_bytes) > 0:
             print(f"Loading PCM data of size {len(pcm_bytes)} bytes into MicMixer.")
