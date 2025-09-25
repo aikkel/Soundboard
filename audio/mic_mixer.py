@@ -102,35 +102,47 @@ class MicMixer:
             self.cleanup()
             raise
 
+    def pcm_to_float32(self, pcm_array):
+        """Convert PCM numpy array to float32 in range [-1.0, 1.0]."""
+        if pcm_array.dtype == np.int16:
+            return pcm_array.astype(np.float32) / INT16_SCALE
+        else:
+            return pcm_array.astype(np.float32)
+
+    def prepare_sound_buffer(self, sound_data):
+        """Decode and prepare sound data as a float32 numpy array for mixing."""
+        sample_rate = self.format.sampleRate()
+        channels = self.format.channelCount()
+        bytes_per_sample = self.format.bytesPerSample()
+
+        # Only decode if not already a numpy array
+        if isinstance(sound_data, np.ndarray):
+            pcm_array = sound_data
+        else:
+            pcm_array = decode_to_pcm(sound_data, sample_rate, channels, bytes_per_sample)
+
+        if pcm_array is None or len(pcm_array) == 0:
+            return np.array([], dtype=np.float32)
+
+        # Convert to float32 for mixing
+        sound_float = self.pcm_to_float32(pcm_array)
+
+        # Duplicate mono channel to stereo if needed
+        sound_float = duplicate_mono_to_stereo(sound_float, channels)
+
+        # Ensure buffer is always (frames, channels)
+        sound_float = ensure_channel_count(sound_float, channels)
+
+        return sound_float
+
     def load_sound(self, sound_data):
         """Load sound data for mixing - convert to match current audio format"""
         try:
-            sample_rate = self.format.sampleRate()
-            channels = self.format.channelCount()
-            bytes_per_sample = self.format.bytesPerSample()
-
-            # Only decode if not already a numpy array
-            if isinstance(sound_data, np.ndarray):
-                pcm_array = sound_data
-            else:
-                pcm_array = decode_to_pcm(sound_data, sample_rate, channels, bytes_per_sample)
-
-            if pcm_array is None or len(pcm_array) == 0:
+            sound_float = self.prepare_sound_buffer(sound_data)
+            if sound_float is None or len(sound_float) == 0:
                 print("Failed to decode or convert sound file")
                 self.sound_buffer = np.array([], dtype=np.float32)
                 return
-
-            # Convert to float32 for mixing
-            if pcm_array.dtype == np.int16:
-                sound_float = pcm_array.astype(np.float32) / INT16_SCALE
-            else:
-                sound_float = pcm_array.astype(np.float32)
-
-            # Duplicate mono channel to stereo if needed
-            sound_float = duplicate_mono_to_stereo(sound_float, channels)
-
-            # Ensure buffer is always (frames, channels)
-            sound_float = ensure_channel_count(sound_float, channels)
 
             self.sound_buffer = sound_float
             self.sound_position = 0
