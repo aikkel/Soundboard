@@ -62,21 +62,20 @@ class MainWindow(QMainWindow):
         self._ensure_mic_mixer()
         self._decode_and_load_sound(file_path)
 
-    # Place this method inside MainWindow
     def _file_exists(self, file_path):
         if not os.path.exists(file_path):
             print(f"File does not exist: {file_path}")
             return False
         return True
 
-    # Place this method inside MainWindow
+
     def _ensure_mic_mixer(self):
         if not self.mic_mixer:
             selected_device = self.input_device.currentData()
             self.mic_mixer = MicMixer(audio_device=selected_device)
             print(f"MicMixer initialized with device: {selected_device.description()}")
 
-    # Place this method inside MainWindow
+
     def _decode_and_load_sound(self, file_path):
         pcm_bytes = decode_to_pcm(file_path)
         if pcm_bytes is not None and len(pcm_bytes) > 0:

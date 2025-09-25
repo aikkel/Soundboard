@@ -102,10 +102,8 @@ def create_standard_qt_format():
 def validate_audio_file(file_path):
     """
     Validate that an audio file can be loaded and processed
-    
     Args:
         file_path: Path to audio file
-    
     Returns:
         dict with file info or None if invalid
     """
@@ -121,6 +119,22 @@ def validate_audio_file(file_path):
     except Exception as e:
         print(f"Invalid audio file {file_path}: {e}")
         return None
+
+def duplicate_mono_to_stereo(sound_array, channels, default_channels=2):
+    """Duplicate mono channel to stereo if needed."""
+    if sound_array.ndim == 1 and channels == default_channels:
+        return np.column_stack([sound_array, sound_array])
+    elif sound_array.ndim == 2 and sound_array.shape[1] == 1 and channels == default_channels:
+        return np.column_stack([sound_array[:, 0], sound_array[:, 0]])
+    return sound_array
+
+def ensure_channel_count(sound_array, channels):
+    """Ensure sound_array has the correct number of channels."""
+    if sound_array.ndim == 1:
+        return sound_array.reshape(-1, channels)
+    elif sound_array.ndim == 2 and sound_array.shape[1] != channels:
+        return sound_array[:, :channels]
+    return sound_array
 
 # Test function
 def test_audio_processing(test_folder_path=None):
@@ -164,10 +178,10 @@ def test_audio_processing(test_folder_path=None):
             else:
                 print("PCM conversion failed")
 
-if __name__ == "__main__":
-    # Test with a folder if provided
-    test_folder = r"e:/Code Projects/Soundboard/Testfolder"  # Update this path
-    if os.path.exists(test_folder):
-        test_audio_processing(test_folder)
-    else:
-        print("Test folder not found, skipping tests")
+# if __name__ == "__main__":
+#     # Test with a folder if provided
+#     test_folder = r"e:/Code Projects/Soundboard/Testfolder"  # Update this path
+#     if os.path.exists(test_folder):
+#         test_audio_processing(test_folder)
+#     else:
+#         print("Test folder not found, skipping tests")

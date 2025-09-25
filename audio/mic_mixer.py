@@ -1,8 +1,8 @@
 from PyQt6.QtMultimedia import QAudioSource, QAudioSink, QMediaDevices, QAudioFormat
 from PyQt6.QtCore import QTimer
 import numpy as np
-from audio.audio_format_utils import decode_to_pcm
-from audio.device_utils import list_audio_devices
+from audio.audio_format_utils import decode_to_pcm, duplicate_mono_to_stereo, ensure_channel_count
+from audio.device_utils import list_audio_devices, get_vbcable_output_device
 
 DEFAULT_CHANNELS = 2
 DEFAULT_SAMPLE_RATE = 48000
@@ -25,7 +25,7 @@ class MicMixer:
 
         # Support multiple output devices
         if output_devices is None:
-            vb_cable = self.get_vbcable_output_device()
+            vb_cable = get_vbcable_output_device()
             default_output = QMediaDevices.defaultAudioOutput()
             self.output_devices = [vb_cable] if vb_cable else []
             if default_output and (not vb_cable or default_output != vb_cable):
@@ -127,10 +127,10 @@ class MicMixer:
                 sound_float = pcm_array.astype(np.float32)
 
             # Duplicate mono channel to stereo if needed
-            sound_float = self.duplicate_mono_to_stereo(sound_float, channels)
+            sound_float = duplicate_mono_to_stereo(sound_float, channels)
 
             # Ensure buffer is always (frames, channels)
-            sound_float = self.ensure_channel_count(sound_float, channels)
+            sound_float = ensure_channel_count(sound_float, channels)
 
             self.sound_buffer = sound_float
             self.sound_position = 0
@@ -225,16 +225,6 @@ class MicMixer:
         self.audio_input = None
         self.audio_output_objs = []
 
-    def get_vbcable_output_device(self):
-        """Find VB-Cable output device"""
-        devices = QMediaDevices.audioOutputs()
-        for device in devices:
-            description = device.description().lower()
-            if "vb-audio" in description or "cable" in description:
-                print(f"Found VB-Cable device: {device.description()}")
-                return device
-        return None
-
     def __del__(self):
         """Destructor to ensure cleanup"""
         self.cleanup()
@@ -245,27 +235,3 @@ class MicMixer:
             pad_shape = (target_frames - sound_chunk.shape[0], channels)
             sound_chunk = np.vstack([sound_chunk, np.zeros(pad_shape, dtype=np.float32)])
         return sound_chunk
-
-    def duplicate_mono_to_stereo(self, sound_array, channels):
-        """Duplicate mono channel to stereo if needed."""
-        if sound_array.ndim == 1 and channels == DEFAULT_CHANNELS:
-            return np.column_stack([sound_array, sound_array])
-        elif sound_array.ndim == 2 and sound_array.shape[1] == 1 and channels == DEFAULT_CHANNELS:
-            return np.column_stack([sound_array[:, 0], sound_array[:, 0]])
-        return sound_array
-
-    def ensure_channel_count(self, sound_array, channels):
-        """Ensure sound_array has the correct number of channels."""
-        if sound_array.ndim == 1:
-            return sound_array.reshape(-1, channels)
-        elif sound_array.ndim == 2 and sound_array.shape[1] != channels:
-            return sound_array[:, :channels]
-        return sound_array
-
-if __name__ == "__main__":
-    # For testing
-    from PyQt6.QtWidgets import QApplication
-    import sys
-
-    app = QApplication(sys.argv)
-    list_audio_devices()
