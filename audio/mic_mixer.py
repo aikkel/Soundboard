@@ -16,26 +16,9 @@ INT16_SCALE = 32768.0
 
 class MicMixer:
     def __init__(self, audio_device=None, output_devices=None):
-        self.audio_device = audio_device or QMediaDevices.defaultAudioInput()
-        if not self.audio_device:
-            print("No microphone device found during registration.")
-            raise RuntimeError("No microphone device found.")
-        else:
-            print(f"Registered microphone: {self.audio_device.description()}")
-
-        # Support multiple output devices
-        if output_devices is None:
-            vb_cable = get_vbcable_output_device()
-            default_output = QMediaDevices.defaultAudioOutput()
-            self.output_devices = [vb_cable] if vb_cable else []
-            if default_output and (not vb_cable or default_output != vb_cable):
-                self.output_devices.append(default_output)
-        else:
-            self.output_devices = output_devices
-
-        print("Using audio output devices:")
-        for dev in self.output_devices:
-            print(f"   - {dev.description()}")
+        self.audio_device = self._select_audio_device(audio_device)
+        self.output_devices = self._setup_output_devices(output_devices)
+        self._print_output_devices()
 
         self.input_stream = None
         self.output_streams = []
@@ -53,6 +36,29 @@ class MicMixer:
         except Exception as e:
             print(f"Microphone initialization failed: {e}")
             raise
+
+    def _select_audio_device(self, audio_device):
+        device = audio_device or QMediaDevices.defaultAudioInput()
+        if not device:
+            print("No microphone device found during registration.")
+            raise RuntimeError("No microphone device found.")
+        print(f"Registered microphone: {device.description()}")
+        return device
+
+    def _setup_output_devices(self, output_devices):
+        if output_devices is not None:
+            return output_devices
+        vb_cable = get_vbcable_output_device()
+        default_output = QMediaDevices.defaultAudioOutput()
+        devices = [vb_cable] if vb_cable else []
+        if default_output and (not vb_cable or default_output != vb_cable):
+            devices.append(default_output)
+        return devices
+
+    def _print_output_devices(self):
+        print("Using audio output devices:")
+        for dev in self.output_devices:
+            print(f"   - {dev.description()}")
 
     def setup_audio_format(self):
         """Set up audio format based on what devices actually support"""
