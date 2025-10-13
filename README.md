@@ -1,5 +1,5 @@
 # This is a soundboard which pipes thrpugh microphone to a virtual mic that can be be picked up on discord. 
-**At present moment it only plays 48Khz soundclips.**
+**At present moment it only plays 48Khz soundclips.** 
 
 ## Soundboard Setup
 
