@@ -72,8 +72,11 @@ class MainWindow(QMainWindow):
     def _ensure_mic_mixer(self):
         if not self.mic_mixer:
             selected_device = self.input_device.currentData()
-            self.mic_mixer = MicMixer(audio_device=selected_device)
-            print(f"MicMixer initialized with device: {selected_device.description()}")
+            # Allow settings to request routing playback only to VB-Cable
+            route_vb = self.settings.get("route_to_vbcable_only", False)
+            self.mic_mixer = MicMixer(audio_device=selected_device, route_to_vbcable_only=route_vb)
+            desc = selected_device.description() if selected_device else "(default)"
+            print(f"MicMixer initialized with device: {desc}; route_to_vbcable_only={route_vb}")
 
 
     def _decode_and_load_sound(self, file_path):
