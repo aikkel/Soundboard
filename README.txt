@@ -1,20 +1,24 @@
-# Soundboard Setup
+# This is a soundboard which pipes thrpugh microphone to a virtual mic that can be be picked up on discord. 
+    At present moment it only plays 48Khz soundclips. 
 
-## Requirements
+## Soundboard Setup
+
+### Requirements
 - Python 3.10+ (https://www.python.org/downloads/)
 - ffmpeg (https://ffmpeg.org/download.html) — add to your PATH
 - VB-Cable (https://vb-audio.com/Cable/) — install and reboot
 
-## Installation
+### Installation
 1. Clone this repo
 2. Open a terminal in the project folder
 3. Run: pip install -r requirements.txt
 
-## Running
+### Running
 python -m ui.main_window
 
-## Troubleshooting
+### Troubleshooting
 - If you see "ffmpeg not found", install ffmpeg and add it to your PATH.
+- remember to set discord or other target output to use VB-Cable output as microphone
 
 Third-Party Dependencies
 ========================
