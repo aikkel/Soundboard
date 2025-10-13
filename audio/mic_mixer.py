@@ -3,16 +3,7 @@ from PyQt6.QtCore import QTimer
 import numpy as np
 from audio.audio_format_utils import decode_to_pcm, duplicate_mono_to_stereo, ensure_channel_count
 from audio.device_utils import list_audio_devices, get_vbcable_output_device
-
-DEFAULT_CHANNELS = 2
-DEFAULT_SAMPLE_RATE = 48000
-AUDIO_OUTPUT_BUFFER_SIZE = 2048
-AUDIO_PROCESS_INTERVAL_SEC = 0.011
-AUDIO_PROCESS_INTERVAL_MS = 11
-MIC_GAIN = 1.0
-MUSIC_GAIN = 0.2
-INT16_MAX = 32767
-INT16_SCALE = 32768.0
+from . import DEFAULT_CHANNELS, DEFAULT_SAMPLE_RATE, AUDIO_OUTPUT_BUFFER_SIZE, AUDIO_PROCESS_INTERVAL_SEC, AUDIO_PROCESS_INTERVAL_MS, MIC_GAIN, MUSIC_GAIN, INT16_MAX, INT16_SCALE
 
 class MicMixer:
     def __init__(self, audio_device=None, output_devices=None):
