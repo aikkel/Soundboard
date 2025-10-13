@@ -40,3 +40,4 @@ FFmpeg is a complete, cross-platform solution to record, convert and stream audi
 
 
 ### Please ensure both VB-Cable and FFmpeg are installed and available in your system PATH for full functionality.
+### Please remember to change irl mic to listen to Cable in 16ch
