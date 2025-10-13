@@ -3,39 +3,24 @@ from PyQt6.QtCore import QTimer
 import numpy as np
 from audio.audio_format_utils import decode_to_pcm, duplicate_mono_to_stereo, ensure_channel_count
 from audio.device_utils import list_audio_devices, get_vbcable_output_device
-
-DEFAULT_CHANNELS = 2
-DEFAULT_SAMPLE_RATE = 48000
-AUDIO_OUTPUT_BUFFER_SIZE = 2048
-AUDIO_PROCESS_INTERVAL_SEC = 0.011
-AUDIO_PROCESS_INTERVAL_MS = 11
-MIC_GAIN = 1.0
-MUSIC_GAIN = 0.2
-INT16_MAX = 32767
-INT16_SCALE = 32768.0
+from . import DEFAULT_CHANNELS, DEFAULT_SAMPLE_RATE, AUDIO_OUTPUT_BUFFER_SIZE, AUDIO_PROCESS_INTERVAL_SEC, AUDIO_PROCESS_INTERVAL_MS, MIC_GAIN, MUSIC_GAIN, INT16_MAX, INT16_SCALE
 
 class MicMixer:
-    def __init__(self, audio_device=None, output_devices=None):
-        self.audio_device = audio_device or QMediaDevices.defaultAudioInput()
-        if not self.audio_device:
-            print("No microphone device found during registration.")
-            raise RuntimeError("No microphone device found.")
-        else:
-            print(f"Registered microphone: {self.audio_device.description()}")
+    def __init__(self, audio_device=None, output_devices=None, route_to_vbcable_only=False):
+        """Create a MicMixer.
 
-        # Support multiple output devices
-        if output_devices is None:
-            vb_cable = get_vbcable_output_device()
-            default_output = QMediaDevices.defaultAudioOutput()
-            self.output_devices = [vb_cable] if vb_cable else []
-            if default_output and (not vb_cable or default_output != vb_cable):
-                self.output_devices.append(default_output)
-        else:
-            self.output_devices = output_devices
+        route_to_vbcable_only: when True, prefer routing playback only to the
+        VB-Cable device (if present) and also keep the microphone input device
+        unchanged. This helps prevent changing the system default mic/device
+        when playing sounds.
+        """
+        self.route_to_vbcable_only = route_to_vbcable_only
 
-        print("Using audio output devices:")
-        for dev in self.output_devices:
-            print(f"   - {dev.description()}")
+        # Do NOT change the system microphone/device. Use provided audio_device
+        # or the system default audio input for capture only.
+        self.audio_device = self._select_audio_device(audio_device)
+        self.output_devices = self._setup_output_devices(output_devices)
+        self._print_output_devices()
 
         self.input_stream = None
         self.output_streams = []
@@ -54,12 +39,70 @@ class MicMixer:
             print(f"Microphone initialization failed: {e}")
             raise
 
+    def _select_audio_device(self, audio_device):
+        # If caller passed a device that is actually the VB-Cable virtual
+        # output (or an output-only device), we must NOT use it as the input
+        # capture device. Instead fall back to the system default audio input
+        # so the real microphone remains active. The VB-Cable device will be
+        # used for output routing instead.
+        vb_cable = get_vbcable_output_device()
+
+        # If audio_device looks like the VB-Cable device, ignore it for input
+        if audio_device is not None:
+            try:
+                desc = audio_device.description().lower()
+            except Exception:
+                desc = ""
+
+            if vb_cable is not None and (audio_device == vb_cable or "vb-audio" in desc or "vb-cable" in desc or "cable" in desc):
+                fallback = QMediaDevices.defaultAudioInput()
+                print(f"Provided device '{audio_device.description()}' appears to be a virtual cable/output device. Using system default input '{fallback.description()}' for capture instead.")
+                device = fallback
+            else:
+                device = audio_device
+        else:
+            device = QMediaDevices.defaultAudioInput()
+
+        if not device:
+            print("No microphone device found during registration.")
+            raise RuntimeError("No microphone device found.")
+
+        print(f"Registered microphone: {device.description()}")
+        return device
+
+    def _setup_output_devices(self, output_devices):
+        if output_devices is not None:
+            return output_devices
+        vb_cable = get_vbcable_output_device()
+        default_output = QMediaDevices.defaultAudioOutput()
+
+        # If route_to_vbcable_only is True, prefer returning only the virtual
+        # cable device so playback goes to the cable and doesn't affect the
+        # default output device used by the system/Discord.
+        if self.route_to_vbcable_only and vb_cable:
+            return [vb_cable]
+
+        devices = [vb_cable] if vb_cable else []
+        if default_output and (not vb_cable or default_output != vb_cable):
+            devices.append(default_output)
+        return devices
+
+    def _print_output_devices(self):
+        print("Using audio output devices:")
+        for dev in self.output_devices:
+            print(f"   - {dev.description()}")
+
     def setup_audio_format(self):
         """Set up audio format based on what devices actually support"""
         # Start with the input device's preferred format
-        self.format = self.audio_device.preferredFormat()
-
-        # Force output to Int16 for compatibility with VB-Cable/Discord
+        # Use the microphone's preferred format for capture but force the
+        # output format to a compatible common format for playback so we don't
+        # try to reconfigure the input device when opening sinks.
+        mic_pref = self.audio_device.preferredFormat()
+        self.format = mic_pref
+        # Force output to Int16 for compatibility with VB-Cable/Discord.
+        # Keep sample rate and channels at app defaults to avoid resampling
+        # the capture device; sinks will accept the format we provide.
         self.format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
         self.format.setChannelCount(DEFAULT_CHANNELS)
         self.format.setSampleRate(DEFAULT_SAMPLE_RATE)
@@ -73,6 +116,11 @@ class MicMixer:
             self.input_stream = self.audio_input.start()
             self.audio_output_objs = []
             self.output_streams = []
+            # If requested, ensure VB-Cable is included in outputs before starting
+            if self.route_to_vbcable_only:
+                vb = get_vbcable_output_device()
+                if vb and vb not in self.output_devices:
+                    self.output_devices.insert(0, vb)
             for dev in self.output_devices:
                 ao = QAudioSink(dev, self.format)
                 ao.setBufferSize(AUDIO_OUTPUT_BUFFER_SIZE)

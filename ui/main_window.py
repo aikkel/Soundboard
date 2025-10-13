@@ -4,7 +4,7 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from PyQt6.QtWidgets import QApplication, QMainWindow, QStackedWidget
-from audio.sound_manager import SoundManager
+# from audio.sound_manager import SoundManager
 from audio.mic_mixer import MicMixer  # Import the MicMixer class
 from utils.config import load_settings, save_settings  # Import the config functions
 from audio.audio_format_utils import decode_to_pcm  # Import the decode function
@@ -31,7 +31,7 @@ class MainWindow(QMainWindow):
         self.central_widget.addWidget(self.scene0)
         self.central_widget.addWidget(self.scene1)
 
-        self.sound_manager = SoundManager()
+        # self.sound_manager = SoundManager()
         self.mic_mixer = None  # Initialize the mic mixer as None
 
         # Apply loaded settings
@@ -72,8 +72,11 @@ class MainWindow(QMainWindow):
     def _ensure_mic_mixer(self):
         if not self.mic_mixer:
             selected_device = self.input_device.currentData()
-            self.mic_mixer = MicMixer(audio_device=selected_device)
-            print(f"MicMixer initialized with device: {selected_device.description()}")
+            # Allow settings to request routing playback only to VB-Cable
+            route_vb = self.settings.get("route_to_vbcable_only", False)
+            self.mic_mixer = MicMixer(audio_device=selected_device, route_to_vbcable_only=route_vb)
+            desc = selected_device.description() if selected_device else "(default)"
+            print(f"MicMixer initialized with device: {desc}; route_to_vbcable_only={route_vb}")
 
 
     def _decode_and_load_sound(self, file_path):

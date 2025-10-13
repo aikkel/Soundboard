@@ -3,6 +3,10 @@ from pydub import AudioSegment
 import numpy as np
 from PyQt6.QtMultimedia import QAudioFormat
 
+from . import DEFAULT_SAMPLE_RATE
+
+
+
 def audio_matches_qt_format(audio_path, qt_format):
     """
     Check if an audio file (any format supported by pydub/ffmpeg) matches the given QAudioFormat.
@@ -26,7 +30,7 @@ def audio_matches_qt_format(audio_path, qt_format):
         print(f"Error checking audio format for {audio_path}: {e}")
         return False
 
-def decode_to_pcm(file_path, target_sample_rate=48000, target_channels=1, target_sample_width=2):
+def decode_to_pcm(file_path, target_sample_rate=DEFAULT_SAMPLE_RATE, target_channels=1, target_sample_width= 2):
     """
     Decode audio file to PCM format compatible with Qt audio
     
@@ -94,7 +98,7 @@ def create_standard_qt_format():
     Create a standard QAudioFormat for consistent audio processing
     """
     audio_format = QAudioFormat()
-    audio_format.setSampleRate(48000)
+    audio_format.setSampleRate(DEFAULT_SAMPLE_RATE)
     audio_format.setChannelCount(1)  # Mono
     audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
     return audio_format
@@ -136,7 +140,7 @@ def ensure_channel_count(sound_array, channels):
         return sound_array[:, :channels]
     return sound_array
 
-# Test function
+# Test function ###########################################################################
 def test_audio_processing(test_folder_path=None):
     """
     Test audio processing functions
