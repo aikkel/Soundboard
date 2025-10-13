@@ -38,6 +38,5 @@ FFmpeg is a complete, cross-platform solution to record, convert and stream audi
 - Website: https://ffmpeg.org/
 - Usage: Used for audio format conversion and processing.
 
-===============
 
 ### Please ensure both VB-Cable and FFmpeg are installed and available in your system PATH for full functionality.
